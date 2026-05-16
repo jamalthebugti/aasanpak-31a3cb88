@@ -14,7 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      history: {
+        Row: {
+          created_at: string
+          id: string
+          input: string
+          kind: Database["public"]["Enums"]["generation_kind"]
+          meta: Json
+          output: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          input: string
+          kind: Database["public"]["Enums"]["generation_kind"]
+          meta?: Json
+          output: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          input?: string
+          kind?: Database["public"]["Enums"]["generation_kind"]
+          meta?: Json
+          output?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +52,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      generation_kind: "email" | "message" | "reply"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +179,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      generation_kind: ["email", "message", "reply"],
+    },
   },
 } as const
