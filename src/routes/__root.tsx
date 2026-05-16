@@ -4,64 +4,38 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useLocation,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
+import { useEffect } from "react";
 
 import appCss from "../styles.css?url";
+import { BottomNav } from "@/components/BottomNav";
+import { useAuth } from "@/hooks/use-auth";
+import { Toaster } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen items-center justify-center px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
-        </p>
-        <div className="mt-6">
-          <Link
-            to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Go home
-          </Link>
-        </div>
+        <h1 className="text-7xl font-bold">404</h1>
+        <p className="mt-2 text-muted-foreground">Page not found</p>
+        <Link to="/" className="mt-6 inline-block px-5 py-3 rounded-2xl bg-primary text-primary-foreground font-semibold">Go home</Link>
       </div>
     </div>
   );
 }
 
 function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
-  console.error(error);
   const router = useRouter();
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
+    <div className="flex min-h-screen items-center justify-center px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
-          <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          >
-            Try again
-          </button>
-          <a
-            href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-          >
-            Go home
-          </a>
-        </div>
+        <h1 className="text-xl font-semibold">Something went wrong</h1>
+        <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+        <button onClick={() => { router.invalidate(); reset(); }} className="mt-6 px-5 py-3 rounded-2xl bg-primary text-primary-foreground font-semibold">Try again</button>
       </div>
     </div>
   );
@@ -71,22 +45,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      { title: "Aassan Pak — AI English in your language" },
+      { name: "description", content: "Aassan Pak turns Roman Urdu, Urdu, Hindi, Punjabi or English into clean professional English emails, messages and replies." },
+      { name: "theme-color", content: "#0f7d8a" },
     ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-    ],
+    links: [{ rel: "stylesheet", href: appCss }],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -108,12 +72,47 @@ function RootShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-function RootComponent() {
-  const { queryClient } = Route.useRouteContext();
+function AppShell() {
+  const loc = useLocation();
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+    const isAuthPage = loc.pathname === "/auth";
+    if (!user && !isAuthPage) router.navigate({ to: "/auth" });
+    if (user && isAuthPage) router.navigate({ to: "/" });
+  }, [user, loading, loc.pathname, router]);
+
+  // restore theme
+  useEffect(() => {
+    const stored = localStorage.getItem("ap-theme");
+    const dark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    document.documentElement.classList.toggle("dark", dark);
+  }, []);
+
+  // invalidate on auth change
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => router.invalidate());
+    return () => subscription.unsubscribe();
+  }, [router]);
+
+  const showNav = !!user && loc.pathname !== "/auth";
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <div className="app-shell">
       <Outlet />
+      {showNav && <BottomNav />}
+      <Toaster position="top-center" richColors />
+    </div>
+  );
+}
+
+function RootComponent() {
+  const { queryClient } = Route.useRouteContext();
+  return (
+    <QueryClientProvider client={queryClient}>
+      <AppShell />
     </QueryClientProvider>
   );
 }
