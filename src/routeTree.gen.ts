@@ -9,8 +9,44 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ReplyRouteImport } from './routes/reply'
+import { Route as MessageRouteImport } from './routes/message'
+import { Route as HistoryRouteImport } from './routes/history'
+import { Route as EmailRouteImport } from './routes/email'
+import { Route as AuthRouteImport } from './routes/auth'
 import { Route as IndexRouteImport } from './routes/index'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReplyRoute = ReplyRouteImport.update({
+  id: '/reply',
+  path: '/reply',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MessageRoute = MessageRouteImport.update({
+  id: '/message',
+  path: '/message',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HistoryRoute = HistoryRouteImport.update({
+  id: '/history',
+  path: '/history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EmailRoute = EmailRouteImport.update({
+  id: '/email',
+  path: '/email',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -19,28 +55,116 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/email': typeof EmailRoute
+  '/history': typeof HistoryRoute
+  '/message': typeof MessageRoute
+  '/reply': typeof ReplyRoute
+  '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/email': typeof EmailRoute
+  '/history': typeof HistoryRoute
+  '/message': typeof MessageRoute
+  '/reply': typeof ReplyRoute
+  '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/email': typeof EmailRoute
+  '/history': typeof HistoryRoute
+  '/message': typeof MessageRoute
+  '/reply': typeof ReplyRoute
+  '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/email'
+    | '/history'
+    | '/message'
+    | '/reply'
+    | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/email'
+    | '/history'
+    | '/message'
+    | '/reply'
+    | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/auth'
+    | '/email'
+    | '/history'
+    | '/message'
+    | '/reply'
+    | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthRoute: typeof AuthRoute
+  EmailRoute: typeof EmailRoute
+  HistoryRoute: typeof HistoryRoute
+  MessageRoute: typeof MessageRoute
+  ReplyRoute: typeof ReplyRoute
+  SettingsRoute: typeof SettingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reply': {
+      id: '/reply'
+      path: '/reply'
+      fullPath: '/reply'
+      preLoaderRoute: typeof ReplyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/message': {
+      id: '/message'
+      path: '/message'
+      fullPath: '/message'
+      preLoaderRoute: typeof MessageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/history': {
+      id: '/history'
+      path: '/history'
+      fullPath: '/history'
+      preLoaderRoute: typeof HistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/email': {
+      id: '/email'
+      path: '/email'
+      fullPath: '/email'
+      preLoaderRoute: typeof EmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -53,7 +177,23 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthRoute: AuthRoute,
+  EmailRoute: EmailRoute,
+  HistoryRoute: HistoryRoute,
+  MessageRoute: MessageRoute,
+  ReplyRoute: ReplyRoute,
+  SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
