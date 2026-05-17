@@ -19,7 +19,7 @@ interface Props {
 
 export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKey = "tone", cta = "Generate" }: Props) {
   const [input, setInput] = useState("");
-  const [tone, setTone] = useState(tones?.[0] ?? "");
+  const [tone, setTone] = useState(tones?.[0] ?? "Professional");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -29,16 +29,27 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
   );
 
   const run = async (isRegen = false) => {
-    if (!input.trim()) return;
+    if (!input.trim()) {
+      toast.error("Please write or speak something first");
+      return;
+    }
     setLoading(true);
     if (!isRegen) setOutput("");
     try {
-      const res = await generate({
-        data: { kind, input: input.trim(), [toneKey]: tone, regenerate: isRegen } as any,
-      });
+      const payload: Record<string, unknown> = {
+        kind,
+        input: input.trim(),
+        regenerate: isRegen,
+      };
+      payload[toneKey] = tone || "Professional";
+      const res = await generate({ data: payload as any });
       setOutput(res.output);
+      if (isRegen) toast.success("Regenerated");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to generate");
+      const msg = e instanceof Error ? e.message : "";
+      if (/limit/i.test(msg)) toast.error(msg);
+      else if (/network|fetch/i.test(msg)) toast.error("Server temporarily unavailable. Please try again.");
+      else toast.error("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
