@@ -56,6 +56,24 @@ function Home() {
       </div>
 
       <div className="px-5 mt-8">
+        <Link
+          to="/pricing"
+          className="block rounded-3xl p-5 bg-gradient-to-br from-primary to-accent text-primary-foreground shadow-[0_14px_40px_-12px_oklch(0.5_0.12_195/0.5)] hover:scale-[1.01] active:scale-[0.99] transition-transform"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center">
+              <Crown className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <p className="text-xs font-bold uppercase tracking-widest opacity-90">Go Premium</p>
+              <p className="font-bold text-base">Unlimited writing from Rs.249/mo</p>
+            </div>
+            <ArrowRight className="w-5 h-5" />
+          </div>
+        </Link>
+      </div>
+
+      <div className="px-5 mt-4">
         <div className="rounded-3xl p-5 bg-gradient-to-br from-primary-soft to-accent-soft border border-border/60">
           <p className="text-xs font-bold uppercase tracking-wider text-primary">Tip</p>
           <p className="mt-1 text-sm text-foreground/80">
