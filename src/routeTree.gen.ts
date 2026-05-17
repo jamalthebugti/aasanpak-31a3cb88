@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ReplyRouteImport } from './routes/reply'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as MessageRouteImport } from './routes/message'
 import { Route as HistoryRouteImport } from './routes/history'
 import { Route as EmailRouteImport } from './routes/email'
@@ -25,6 +26,11 @@ const SettingsRoute = SettingsRouteImport.update({
 const ReplyRoute = ReplyRouteImport.update({
   id: '/reply',
   path: '/reply',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MessageRoute = MessageRouteImport.update({
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/email': typeof EmailRoute
   '/history': typeof HistoryRoute
   '/message': typeof MessageRoute
+  '/pricing': typeof PricingRoute
   '/reply': typeof ReplyRoute
   '/settings': typeof SettingsRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/email': typeof EmailRoute
   '/history': typeof HistoryRoute
   '/message': typeof MessageRoute
+  '/pricing': typeof PricingRoute
   '/reply': typeof ReplyRoute
   '/settings': typeof SettingsRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/email': typeof EmailRoute
   '/history': typeof HistoryRoute
   '/message': typeof MessageRoute
+  '/pricing': typeof PricingRoute
   '/reply': typeof ReplyRoute
   '/settings': typeof SettingsRoute
 }
@@ -89,6 +98,7 @@ export interface FileRouteTypes {
     | '/email'
     | '/history'
     | '/message'
+    | '/pricing'
     | '/reply'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
@@ -98,6 +108,7 @@ export interface FileRouteTypes {
     | '/email'
     | '/history'
     | '/message'
+    | '/pricing'
     | '/reply'
     | '/settings'
   id:
@@ -107,6 +118,7 @@ export interface FileRouteTypes {
     | '/email'
     | '/history'
     | '/message'
+    | '/pricing'
     | '/reply'
     | '/settings'
   fileRoutesById: FileRoutesById
@@ -117,6 +129,7 @@ export interface RootRouteChildren {
   EmailRoute: typeof EmailRoute
   HistoryRoute: typeof HistoryRoute
   MessageRoute: typeof MessageRoute
+  PricingRoute: typeof PricingRoute
   ReplyRoute: typeof ReplyRoute
   SettingsRoute: typeof SettingsRoute
 }
@@ -135,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/reply'
       fullPath: '/reply'
       preLoaderRoute: typeof ReplyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/message': {
@@ -181,19 +201,10 @@ const rootRouteChildren: RootRouteChildren = {
   EmailRoute: EmailRoute,
   HistoryRoute: HistoryRoute,
   MessageRoute: MessageRoute,
+  PricingRoute: PricingRoute,
   ReplyRoute: ReplyRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

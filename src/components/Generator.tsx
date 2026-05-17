@@ -28,13 +28,13 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
     setInput((p) => (p ? p + " " : "") + text)
   );
 
-  const run = async () => {
+  const run = async (isRegen = false) => {
     if (!input.trim()) return;
     setLoading(true);
-    setOutput("");
+    if (!isRegen) setOutput("");
     try {
       const res = await generate({
-        data: { kind, input: input.trim(), [toneKey]: tone } as any,
+        data: { kind, input: input.trim(), [toneKey]: tone, regenerate: isRegen } as any,
       });
       setOutput(res.output);
     } catch (e) {
@@ -115,7 +115,7 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
       )}
 
       <button
-        onClick={run}
+        onClick={() => run()}
         disabled={loading || !input.trim()}
         className={cn(
           "w-full py-4 rounded-3xl font-bold text-base text-primary-foreground bg-primary transition-all flex items-center justify-center gap-2",
@@ -145,7 +145,7 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
             <button onClick={share} className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-success/15 text-success font-semibold text-sm hover:bg-success/25 transition">
               <Share2 className="w-4 h-4" /> Share
             </button>
-            <button onClick={run} disabled={loading} className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-accent-soft text-accent-foreground font-semibold text-sm hover:scale-[1.02] transition disabled:opacity-50">
+            <button onClick={() => run(true)} disabled={loading} className="flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-accent-soft text-accent-foreground font-semibold text-sm hover:scale-[1.02] transition disabled:opacity-50">
               <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} /> Redo
             </button>
           </div>
