@@ -13,7 +13,7 @@ export const Route = createFileRoute("/pricing")({
   }),
 });
 
-const WHATSAPP_NUMBER = "923000000000"; // TODO: replace with real number
+const WHATSAPP_NUMBER = "923210006990";
 
 const plans = [
   {
