@@ -15,11 +15,13 @@ interface Props {
   toneLabel?: string;
   toneKey?: "tone" | "style";
   cta?: string;
+  lengths?: string[];
 }
 
-export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKey = "tone", cta = "Generate" }: Props) {
+export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKey = "tone", cta = "Generate", lengths }: Props) {
   const [input, setInput] = useState("");
   const [tone, setTone] = useState(tones?.[0] ?? "Professional");
+  const [length, setLength] = useState(lengths?.[1] ?? lengths?.[0] ?? "Detailed Professional");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -42,6 +44,7 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
         regenerate: isRegen,
       };
       payload[toneKey] = tone || "Professional";
+      if (lengths) payload.length = length;
       const res = await generate({ data: payload as any });
       setOutput(res.output);
       if (isRegen) toast.success("Regenerated");
