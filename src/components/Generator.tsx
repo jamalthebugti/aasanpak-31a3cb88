@@ -28,13 +28,13 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
     setInput((p) => (p ? p + " " : "") + text)
   );
 
-  const run = async () => {
+  const run = async (isRegen = false) => {
     if (!input.trim()) return;
     setLoading(true);
-    setOutput("");
+    if (!isRegen) setOutput("");
     try {
       const res = await generate({
-        data: { kind, input: input.trim(), [toneKey]: tone } as any,
+        data: { kind, input: input.trim(), [toneKey]: tone, regenerate: isRegen } as any,
       });
       setOutput(res.output);
     } catch (e) {
