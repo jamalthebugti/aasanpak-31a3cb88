@@ -4,10 +4,10 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const InputSchema = z.object({
   kind: z.enum(["email", "message", "reply"]),
-  input: z.string().min(1).max(4000),
-  tone: z.string().min(1).max(40).optional(),
-  style: z.string().min(1).max(40).optional(),
-  regenerate: z.boolean().optional(),
+  input: z.string().trim().min(1).max(4000),
+  tone: z.string().trim().max(40).optional().default("Professional").transform((v) => v || "Professional"),
+  style: z.string().trim().max(40).optional().default("Professional").transform((v) => v || "Professional"),
+  regenerate: z.boolean().optional().default(false),
 });
 
 const DAILY_INPUT_LIMIT = 15;
