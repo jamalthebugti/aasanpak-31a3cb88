@@ -128,6 +128,28 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
         </div>
       )}
 
+      {lengths && (
+        <div>
+          <p className="text-sm font-semibold mb-2 px-1">Length</p>
+          <div className="flex flex-wrap gap-2">
+            {lengths.map((l) => (
+              <button
+                key={l}
+                onClick={() => setLength(l)}
+                className={cn(
+                  "px-4 py-2 rounded-full text-sm font-semibold border transition-all",
+                  length === l
+                    ? "bg-primary text-primary-foreground border-primary shadow-[var(--shadow-soft)]"
+                    : "bg-card text-foreground border-border hover:border-primary/40"
+                )}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <button
         onClick={() => run()}
         disabled={loading || !input.trim()}
