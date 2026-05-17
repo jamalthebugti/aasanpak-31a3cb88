@@ -15,11 +15,13 @@ interface Props {
   toneLabel?: string;
   toneKey?: "tone" | "style";
   cta?: string;
+  lengths?: string[];
 }
 
-export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKey = "tone", cta = "Generate" }: Props) {
+export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKey = "tone", cta = "Generate", lengths }: Props) {
   const [input, setInput] = useState("");
   const [tone, setTone] = useState(tones?.[0] ?? "Professional");
+  const [length, setLength] = useState(lengths?.[1] ?? lengths?.[0] ?? "Detailed Professional");
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -42,6 +44,7 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
         regenerate: isRegen,
       };
       payload[toneKey] = tone || "Professional";
+      if (lengths) payload.length = length;
       const res = await generate({ data: payload as any });
       setOutput(res.output);
       if (isRegen) toast.success("Regenerated");
@@ -119,6 +122,28 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
                 )}
               >
                 {t}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {lengths && (
+        <div>
+          <p className="text-sm font-semibold mb-2 px-1">Length</p>
+          <div className="flex flex-wrap gap-2">
+            {lengths.map((l) => (
+              <button
+                key={l}
+                onClick={() => setLength(l)}
+                className={cn(
+                  "px-4 py-2 rounded-full text-sm font-semibold border transition-all",
+                  length === l
+                    ? "bg-primary text-primary-foreground border-primary shadow-[var(--shadow-soft)]"
+                    : "bg-card text-foreground border-border hover:border-primary/40"
+                )}
+              >
+                {l}
               </button>
             ))}
           </div>

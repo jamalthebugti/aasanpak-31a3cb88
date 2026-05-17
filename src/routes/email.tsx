@@ -16,6 +16,7 @@ function EmailPage() {
         kind="email"
         cta="Write my email"
         tones={["Professional", "Friendly", "Formal", "Casual"]}
+        lengths={["Standard", "Detailed Professional", "Highly Professional", "Short Version"]}
         placeholder="Boss ko email likhna hai k kal chutti chahiye family emergency ki wajah se…"
       />
     </div>

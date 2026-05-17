@@ -7,25 +7,47 @@ const InputSchema = z.object({
   input: z.string().trim().min(1).max(4000),
   tone: z.string().trim().max(40).optional().default("Professional").transform((v) => v || "Professional"),
   style: z.string().trim().max(40).optional().default("Professional").transform((v) => v || "Professional"),
+  length: z.enum(["Standard", "Detailed Professional", "Highly Professional", "Short Version"]).optional().default("Detailed Professional"),
   regenerate: z.boolean().optional().default(false),
 });
 
 const DAILY_INPUT_LIMIT = 15;
 const DAILY_REGEN_LIMIT = 10;
 
-function buildPrompt(kind: string, input: string, tone?: string, style?: string) {
-  const common = `You are a writing assistant for people who are not fluent in English. The user may write in Roman Urdu, Urdu, Hindi, Punjabi, or English. Auto-detect the language. Convert the meaning faithfully into clear, simple, natural English. Use easy vocabulary. Keep grammar correct and polite. Never explain — only return the requested output.`;
+function buildPrompt(kind: string, input: string, tone?: string, style?: string, length?: string) {
+  const common = `You are a senior professional writing assistant for people who are not fluent in English. The user may write in Roman Urdu, Urdu, Hindi, Punjabi, or English — often very short, rough, or informal. Auto-detect the language. Preserve the original meaning faithfully. Use clear, simple, natural English (easy vocabulary, correct grammar, polite tone). Never explain your work — only return the requested output.`;
 
   if (kind === "email") {
+    const mode = length || "Detailed Professional";
+    const lengthGuide =
+      mode === "Short Version"
+        ? "Keep the email concise: 60–100 words. Still include greeting, 1 short paragraph, and a polite closing."
+        : mode === "Standard"
+        ? "Write a balanced email: 100–160 words. Greeting, 1–2 clear paragraphs, polite closing."
+        : mode === "Highly Professional"
+        ? "Write a polished, formal corporate email: 200–300 words. Greeting, clear introduction, detailed body across 2–3 paragraphs, formal closing. Use refined, executive-level English while staying easy to read."
+        : "Write a complete, detailed, professional email: 150–250 words. Greeting, clear introduction, 2–3 well-developed body paragraphs, polite closing.";
+
     return `${common}
 
-Task: Write a professional but simple English email.
-Return STRICT format:
-Subject: <one short subject line>
----
-<email body with greeting, short body, polite closing>
+Task: Transform the user's short or rough instruction into a complete, authentic, workplace-ready English email.
 
-User message:
+Core rules:
+- Deeply understand the user's intent even if the input is just a few words.
+- Intelligently expand and add realistic professional context WITHOUT changing the original meaning or inventing false facts (names, dates, numbers). Use neutral placeholders like [Name], [Date], [Team] only if essential.
+- Auto-detect the situation type (leave request, complaint, warning, apology, meeting request, client message, HR communication, follow-up, etc.) and adapt tone accordingly.
+- Tone preference from user: ${tone || "Professional"}.
+- ${lengthGuide}
+- Sound human, natural, and business-appropriate. Avoid robotic, repetitive, or overly generic phrases.
+- Use proper paragraph spacing (blank line between paragraphs).
+- End with a professional closing (Best regards / Sincerely / Thank you) followed by a signature placeholder like "[Your Name]".
+
+Return STRICT format (and nothing else):
+Subject: <one clear, specific subject line>
+---
+<full email body with greeting, paragraphs separated by blank lines, closing, and signature placeholder>
+
+User instruction:
 """${input}"""`;
   }
   if (kind === "message") {
@@ -55,7 +77,7 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+      generationConfig: { temperature: 0.75, maxOutputTokens: 2048 },
     }),
   });
 
@@ -109,7 +131,7 @@ export const generateCopy = createServerFn({ method: "POST" })
       }
     }
 
-    const prompt = buildPrompt(data.kind, data.input, data.tone, data.style);
+    const prompt = buildPrompt(data.kind, data.input, data.tone, data.style, data.length);
     const output = await callGemini(apiKey, prompt);
 
     try {
