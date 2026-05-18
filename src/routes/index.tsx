@@ -37,6 +37,10 @@ function Home() {
         </p>
       </header>
 
+      <div className="px-5 mb-4">
+        <UsageCard />
+      </div>
+
       <div className="px-5 space-y-3">
         {cards.map(({ to, title, desc, icon: Icon, color }) => (
           <Link
