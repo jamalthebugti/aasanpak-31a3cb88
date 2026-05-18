@@ -11,8 +11,8 @@ const InputSchema = z.object({
   regenerate: z.boolean().optional().default(false),
 });
 
-const DAILY_INPUT_LIMIT = 15;
-const DAILY_REGEN_LIMIT = 10;
+export const MONTHLY_INPUT_LIMIT = 15;
+export const MONTHLY_REGEN_LIMIT = 10;
 
 function buildPrompt(kind: string, input: string, tone?: string, style?: string, length?: string) {
   const common = `You are a senior professional writing assistant for people who are not fluent in English. The user may write in Roman Urdu, Urdu, Hindi, Punjabi, or English — often very short, rough, or informal. Auto-detect the language. Preserve the original meaning faithfully. Use clear, simple, natural English (easy vocabulary, correct grammar, polite tone). Never explain your work — only return the requested output.`;
@@ -83,9 +83,9 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    if (res.status === 429) throw new Error("Too many requests to Gemini. Try again in a moment.");
-    if (res.status === 401 || res.status === 403) throw new Error("Gemini API key is invalid or unauthorized.");
-    throw new Error(`Gemini error (${res.status}): ${errText.slice(0, 200) || "unknown"}`);
+    if (res.status === 429) throw new Error("Too many requests. Try again in a moment.");
+    if (res.status === 401 || res.status === 403) throw new Error("AI service key is invalid.");
+    throw new Error(`AI error (${res.status}): ${errText.slice(0, 200) || "unknown"}`);
   }
 
   const data = (await res.json()) as {
@@ -98,8 +98,19 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
   }
 
   const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim();
-  if (!text) throw new Error("Empty response from Gemini.");
+  if (!text) throw new Error("Empty response from AI.");
   return text;
+}
+
+async function isPremiumActive(supabase: any, userId: string): Promise<boolean> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("is_premium, premium_expires_at")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (!data?.is_premium) return false;
+  if (data.premium_expires_at && new Date(data.premium_expires_at).getTime() <= Date.now()) return false;
+  return true;
 }
 
 export const generateCopy = createServerFn({ method: "POST" })
@@ -107,27 +118,32 @@ export const generateCopy = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => InputSchema.parse(data))
   .handler(async ({ data, context }) => {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error("AI service is not configured. Missing GEMINI_API_KEY.");
+    if (!apiKey) throw new Error("AI service is not configured.");
 
-    // Daily limit check (free tier: 15 inputs, 10 regenerates per day)
-    const since = new Date();
-    since.setHours(0, 0, 0, 0);
-    const { data: todayRows, error: countErr } = await context.supabase
-      .from("history")
-      .select("id,meta")
-      .eq("user_id", context.userId)
-      .gte("created_at", since.toISOString());
+    const premium = await isPremiumActive(context.supabase, context.userId);
 
-    if (!countErr && todayRows) {
-      const total = todayRows.length;
-      const regens = todayRows.filter((r) => (r.meta as { regenerate?: boolean } | null)?.regenerate === true).length;
-      const newInputs = total - regens;
+    if (!premium) {
+      // Monthly limit check
+      const since = new Date();
+      since.setDate(1);
+      since.setHours(0, 0, 0, 0);
+      const { data: rows } = await context.supabase
+        .from("history")
+        .select("id,meta")
+        .eq("user_id", context.userId)
+        .gte("created_at", since.toISOString());
 
-      if (data.regenerate && regens >= DAILY_REGEN_LIMIT) {
-        throw new Error(`Daily regenerate limit reached (${DAILY_REGEN_LIMIT}/day). Upgrade to continue.`);
-      }
-      if (!data.regenerate && newInputs >= DAILY_INPUT_LIMIT) {
-        throw new Error(`Daily free limit reached (${DAILY_INPUT_LIMIT} generations/day). Upgrade to continue.`);
+      if (rows) {
+        const total = rows.length;
+        const regens = rows.filter((r: any) => (r.meta as { regenerate?: boolean } | null)?.regenerate === true).length;
+        const newInputs = total - regens;
+
+        if (data.regenerate && regens >= MONTHLY_REGEN_LIMIT) {
+          throw new Error(`LIMIT_REACHED: Monthly regenerate limit reached (${MONTHLY_REGEN_LIMIT}/month). Upgrade to Premium for unlimited access.`);
+        }
+        if (!data.regenerate && newInputs >= MONTHLY_INPUT_LIMIT) {
+          throw new Error(`LIMIT_REACHED: Monthly free limit reached (${MONTHLY_INPUT_LIMIT} generations/month). Upgrade to Premium for unlimited access.`);
+        }
       }
     }
 
@@ -147,4 +163,37 @@ export const generateCopy = createServerFn({ method: "POST" })
     }
 
     return { output };
+  });
+
+export const getUsage = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const premium = await isPremiumActive(context.supabase, context.userId);
+    const since = new Date();
+    since.setDate(1);
+    since.setHours(0, 0, 0, 0);
+    const { data: rows } = await context.supabase
+      .from("history")
+      .select("id,meta")
+      .eq("user_id", context.userId)
+      .gte("created_at", since.toISOString());
+
+    const total = rows?.length ?? 0;
+    const regens = (rows ?? []).filter((r: any) => (r.meta as { regenerate?: boolean } | null)?.regenerate === true).length;
+    const generations = total - regens;
+
+    const { data: profile } = await context.supabase
+      .from("profiles")
+      .select("is_premium, premium_expires_at")
+      .eq("user_id", context.userId)
+      .maybeSingle();
+
+    return {
+      premium,
+      generations,
+      regenerations: regens,
+      generationLimit: MONTHLY_INPUT_LIMIT,
+      regenerationLimit: MONTHLY_REGEN_LIMIT,
+      premiumExpiresAt: profile?.premium_expires_at ?? null,
+    };
   });

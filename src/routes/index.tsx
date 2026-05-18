@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Mail, MessageCircle, Reply, ArrowRight, Sparkles, Crown } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { UsageCard } from "@/components/UsageCard";
 
 export const Route = createFileRoute("/")({
   component: Home,
@@ -35,6 +36,10 @@ function Home() {
           Apni zubaan mein likhein — hum English mein convert karenge.
         </p>
       </header>
+
+      <div className="px-5 mb-4">
+        <UsageCard />
+      </div>
 
       <div className="px-5 space-y-3">
         {cards.map(({ to, title, desc, icon: Icon, color }) => (
