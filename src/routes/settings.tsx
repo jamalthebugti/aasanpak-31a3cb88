@@ -38,6 +38,28 @@ function SettingsPage() {
           </div>
         </div>
 
+        <Link to="/pricing" className="card-soft p-4 w-full flex items-center gap-3 hover:scale-[1.01] transition-transform">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-accent text-primary-foreground flex items-center justify-center">
+            <Crown className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold">Upgrade to Premium</p>
+            <p className="text-xs text-muted-foreground">Unlimited writing & voice</p>
+          </div>
+        </Link>
+
+        {isAdmin && (
+          <Link to="/admin" className="card-soft p-4 w-full flex items-center gap-3 hover:scale-[1.01] transition-transform">
+            <div className="w-11 h-11 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center">
+              <Shield className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold">Admin Dashboard</p>
+              <p className="text-xs text-muted-foreground">Manage users & premium</p>
+            </div>
+          </Link>
+        )}
+
         <button onClick={toggle} className="card-soft p-4 w-full flex items-center gap-3 text-left hover:scale-[1.01] transition-transform">
           <div className="w-11 h-11 rounded-2xl bg-accent-soft text-accent-foreground flex items-center justify-center">
             {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
