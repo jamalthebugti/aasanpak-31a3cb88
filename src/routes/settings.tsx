@@ -1,9 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Settings as SettingsIcon, Moon, Sun, LogOut, User as UserIcon, Heart } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { Settings as SettingsIcon, Moon, Sun, LogOut, User as UserIcon, Heart, Crown, Shield } from "lucide-react";
 import { TopBar } from "@/components/BottomNav";
 import { useTheme } from "@/hooks/use-theme";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { adminCheck } from "@/lib/admin.functions";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -13,6 +16,13 @@ export const Route = createFileRoute("/settings")({
 function SettingsPage() {
   const { theme, toggle } = useTheme();
   const { user } = useAuth();
+  const check = useServerFn(adminCheck);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    check().then((r) => setIsAdmin(!!r.isAdmin)).catch(() => {});
+  }, [user, check]);
 
   return (
     <div>
