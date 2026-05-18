@@ -58,7 +58,7 @@ export const adminSetPremium = createServerFn({ method: "POST" })
     const { error } = await context.supabase.rpc("admin_set_premium", {
       _user_id: data.userId,
       _is_premium: data.isPremium,
-      _expires_at: data.expiresAt ?? null,
+      _expires_at: (data.expiresAt ?? null) as any,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
