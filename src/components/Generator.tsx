@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { generateCopy } from "@/lib/generate.functions";
 import { useVoiceInput } from "@/hooks/use-voice";
 import { cn } from "@/lib/utils";
+import { UpgradeModal } from "@/components/UpgradeModal";
 
 type Kind = "email" | "message" | "reply";
 
@@ -25,6 +26,8 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
   const [output, setOutput] = useState("");
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [upgradeMsg, setUpgradeMsg] = useState<string | undefined>();
   const generate = useServerFn(generateCopy);
   const { listening, supported, start, stop } = useVoiceInput((text) =>
     setInput((p) => (p ? p + " " : "") + text)
@@ -50,9 +53,16 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
       if (isRegen) toast.success("Regenerated");
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
-      if (/limit/i.test(msg)) toast.error(msg);
-      else if (/network|fetch/i.test(msg)) toast.error("Server temporarily unavailable. Please try again.");
-      else toast.error("Something went wrong. Please try again.");
+      if (/LIMIT_REACHED/i.test(msg)) {
+        setUpgradeMsg(msg.replace(/^.*LIMIT_REACHED:\s*/i, ""));
+        setUpgradeOpen(true);
+      } else if (/limit/i.test(msg)) {
+        toast.error(msg);
+      } else if (/network|fetch/i.test(msg)) {
+        toast.error("Server temporarily unavailable. Please try again.");
+      } else {
+        toast.error("Something went wrong. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
