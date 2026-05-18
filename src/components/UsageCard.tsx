@@ -48,7 +48,7 @@ export function UsageCard() {
       <Bar icon={RefreshCw} label="Regenerations" used={u.regenerations} total={u.regenerationLimit} />
 
       {showWarn && (
-        <p className="text-xs text-warning-foreground bg-warning/10 rounded-lg p-2">
+        <p className="text-xs font-medium text-primary bg-primary-soft rounded-lg p-2">
           {genLeft === 0
             ? "Your monthly free limit has ended. Upgrade to continue."
             : `You have ${genLeft} free generation${genLeft === 1 ? "" : "s"} remaining this month.`}
