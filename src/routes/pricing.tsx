@@ -53,7 +53,7 @@ function PricingPage() {
         <div className="card-soft p-4 mb-4 bg-gradient-to-br from-primary-soft to-accent-soft border-primary/20">
           <p className="text-xs font-bold uppercase tracking-wider text-primary">Free plan</p>
           <p className="text-sm mt-1 text-foreground/80">
-            15 generations + 10 regenerates per day. Upgrade for more.
+            15 generations + 10 regenerates per month. Upgrade for unlimited.
           </p>
         </div>
       </div>
