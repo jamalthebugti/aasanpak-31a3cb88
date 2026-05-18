@@ -197,6 +197,7 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
           </div>
         </div>
       )}
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} message={upgradeMsg} />
     </div>
   );
 }
