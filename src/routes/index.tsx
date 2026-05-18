@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Mail, MessageCircle, Reply, ArrowRight, Sparkles, Crown } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { UsageCard } from "@/components/UsageCard";
 
 export const Route = createFileRoute("/")({
   component: Home,
