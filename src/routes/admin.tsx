@@ -431,7 +431,7 @@ function ManageDrawer({
                 "Subscription suspended"
               )
             }
-            className="py-3 rounded-xl bg-warning/15 text-warning text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+            className="py-3 rounded-xl bg-accent-soft text-accent-foreground text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
           >
             <Pause className="w-3.5 h-3.5" /> Suspend
           </button>
