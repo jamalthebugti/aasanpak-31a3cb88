@@ -65,7 +65,7 @@ export const adminSetPlan = createServerFn({ method: "POST" })
       _plan: data.plan,
       _expires_at: (data.expiresAt ?? null) as any,
       _status: data.status,
-      _notes: data.notes ?? null,
+      _notes: data.notes ?? undefined,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
@@ -100,7 +100,7 @@ export const adminSetPremium = createServerFn({ method: "POST" })
       _plan: data.isPremium ? "pro" : "free",
       _expires_at: (data.expiresAt ?? null) as any,
       _status: data.isPremium ? "active" : "inactive",
-      _notes: null,
+      _notes: undefined,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
