@@ -1,6 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { PLAN_LIMITS, type PlanName, isUnlimited } from "@/lib/plans";
 
 const InputSchema = z.object({
   kind: z.enum(["email", "message", "reply"]),
@@ -11,8 +13,9 @@ const InputSchema = z.object({
   regenerate: z.boolean().optional().default(false),
 });
 
-export const MONTHLY_INPUT_LIMIT = 15;
-export const MONTHLY_REGEN_LIMIT = 10;
+// Kept for back-compat with any importers
+export const MONTHLY_INPUT_LIMIT = PLAN_LIMITS.free.generations;
+export const MONTHLY_REGEN_LIMIT = PLAN_LIMITS.free.regenerations;
 
 function buildPrompt(kind: string, input: string, tone?: string, style?: string, length?: string) {
   const common = `You are a senior professional writing assistant for people who are not fluent in English. The user may write in Roman Urdu, Urdu, Hindi, Punjabi, or English — often very short, rough, or informal. Auto-detect the language. Preserve the original meaning faithfully. Use clear, simple, natural English (easy vocabulary, correct grammar, polite tone). Never explain your work — only return the requested output.`;
@@ -102,15 +105,49 @@ async function callGemini(apiKey: string, prompt: string): Promise<string> {
   return text;
 }
 
-async function isPremiumActive(supabase: any, userId: string): Promise<boolean> {
-  const { data } = await supabase
+interface EffectivePlan {
+  plan: PlanName;
+  isActive: boolean; // premium + not expired
+  expiresAt: string | null;
+}
+
+async function getEffectivePlan(userId: string): Promise<EffectivePlan> {
+  const { data } = await supabaseAdmin
     .from("profiles")
-    .select("is_premium, premium_expires_at")
+    .select("plan, is_premium, premium_expires_at, subscription_status")
     .eq("user_id", userId)
     .maybeSingle();
-  if (!data?.is_premium) return false;
-  if (data.premium_expires_at && new Date(data.premium_expires_at).getTime() <= Date.now()) return false;
-  return true;
+
+  const planRaw = (data?.plan as PlanName | undefined) ?? "free";
+  const expiresAt = (data?.premium_expires_at as string | null) ?? null;
+  const notExpired = !expiresAt || new Date(expiresAt).getTime() > Date.now();
+  const isActive =
+    planRaw !== "free" &&
+    !!data?.is_premium &&
+    data?.subscription_status === "active" &&
+    notExpired;
+
+  return { plan: isActive ? planRaw : "free", isActive, expiresAt };
+}
+
+async function getCurrentCounters(userId: string) {
+  // Period start = first day of current month (UTC-ish, matches db function)
+  const start = new Date();
+  start.setUTCDate(1);
+  start.setUTCHours(0, 0, 0, 0);
+  const periodStart = start.toISOString().slice(0, 10);
+
+  const { data } = await supabaseAdmin
+    .from("usage_counters")
+    .select("generations, regenerations")
+    .eq("user_id", userId)
+    .eq("period_start", periodStart)
+    .maybeSingle();
+
+  return {
+    generations: data?.generations ?? 0,
+    regenerations: data?.regenerations ?? 0,
+  };
 }
 
 export const generateCopy = createServerFn({ method: "POST" })
@@ -120,36 +157,40 @@ export const generateCopy = createServerFn({ method: "POST" })
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) throw new Error("AI service is not configured.");
 
-    const premium = await isPremiumActive(context.supabase, context.userId);
+    const { plan } = await getEffectivePlan(context.userId);
+    const limits = PLAN_LIMITS[plan];
 
-    if (!premium) {
-      // Monthly limit check
-      const since = new Date();
-      since.setDate(1);
-      since.setHours(0, 0, 0, 0);
-      const { data: rows } = await context.supabase
-        .from("history")
-        .select("id,meta")
-        .eq("user_id", context.userId)
-        .gte("created_at", since.toISOString());
+    // Enforce limits server-side from persistent usage_counters
+    const counters = await getCurrentCounters(context.userId);
 
-      if (rows) {
-        const total = rows.length;
-        const regens = rows.filter((r: any) => (r.meta as { regenerate?: boolean } | null)?.regenerate === true).length;
-        const newInputs = total - regens;
-
-        if (data.regenerate && regens >= MONTHLY_REGEN_LIMIT) {
-          throw new Error(`LIMIT_REACHED: Monthly regenerate limit reached (${MONTHLY_REGEN_LIMIT}/month). Upgrade to Premium for unlimited access.`);
-        }
-        if (!data.regenerate && newInputs >= MONTHLY_INPUT_LIMIT) {
-          throw new Error(`LIMIT_REACHED: Monthly free limit reached (${MONTHLY_INPUT_LIMIT} generations/month). Upgrade to Premium for unlimited access.`);
-        }
+    if (data.regenerate) {
+      if (!isUnlimited(limits.regenerations) && counters.regenerations >= limits.regenerations) {
+        throw new Error(
+          `LIMIT_REACHED: Monthly regenerate limit reached (${limits.regenerations}/month on ${PLAN_LIMITS[plan].label}). Upgrade for more.`
+        );
+      }
+    } else {
+      if (!isUnlimited(limits.generations) && counters.generations >= limits.generations) {
+        throw new Error(
+          `LIMIT_REACHED: Monthly generation limit reached (${limits.generations}/month on ${PLAN_LIMITS[plan].label}). Upgrade for more.`
+        );
       }
     }
 
     const prompt = buildPrompt(data.kind, data.input, data.tone, data.style, data.length);
     const output = await callGemini(apiKey, prompt);
 
+    // Increment persistent counter (cannot be reduced by deleting history)
+    try {
+      await supabaseAdmin.rpc("increment_usage", {
+        _user_id: context.userId,
+        _is_regen: !!data.regenerate,
+      });
+    } catch (e) {
+      console.error("increment_usage failed", e);
+    }
+
+    // History is purely for display; deleting it does NOT affect limits.
     try {
       await context.supabase.from("history").insert({
         user_id: context.userId,
@@ -168,32 +209,18 @@ export const generateCopy = createServerFn({ method: "POST" })
 export const getUsage = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const premium = await isPremiumActive(context.supabase, context.userId);
-    const since = new Date();
-    since.setDate(1);
-    since.setHours(0, 0, 0, 0);
-    const { data: rows } = await context.supabase
-      .from("history")
-      .select("id,meta")
-      .eq("user_id", context.userId)
-      .gte("created_at", since.toISOString());
-
-    const total = rows?.length ?? 0;
-    const regens = (rows ?? []).filter((r: any) => (r.meta as { regenerate?: boolean } | null)?.regenerate === true).length;
-    const generations = total - regens;
-
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("is_premium, premium_expires_at")
-      .eq("user_id", context.userId)
-      .maybeSingle();
+    const eff = await getEffectivePlan(context.userId);
+    const limits = PLAN_LIMITS[eff.plan];
+    const counters = await getCurrentCounters(context.userId);
 
     return {
-      premium,
-      generations,
-      regenerations: regens,
-      generationLimit: MONTHLY_INPUT_LIMIT,
-      regenerationLimit: MONTHLY_REGEN_LIMIT,
-      premiumExpiresAt: profile?.premium_expires_at ?? null,
+      plan: eff.plan,
+      planLabel: limits.label,
+      premium: eff.isActive,
+      generations: counters.generations,
+      regenerations: counters.regenerations,
+      generationLimit: limits.generations,
+      regenerationLimit: limits.regenerations,
+      premiumExpiresAt: eff.expiresAt,
     };
   });
