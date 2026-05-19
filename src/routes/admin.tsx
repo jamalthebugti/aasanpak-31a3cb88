@@ -1,10 +1,17 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { Shield, Users, Crown, Search, Check, X as XIcon } from "lucide-react";
+import { Shield, Users, Crown, Search, Check, X as XIcon, RotateCcw, Pause } from "lucide-react";
 import { TopBar } from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
-import { adminCheck, adminGetStats, adminListUsers, adminSetPremium } from "@/lib/admin.functions";
+import {
+  adminCheck,
+  adminGetStats,
+  adminListUsers,
+  adminSetPlan,
+  adminResetUsage,
+} from "@/lib/admin.functions";
+import { PLAN_LIMITS, PLAN_ORDER, type PlanName, isUnlimited } from "@/lib/plans";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -20,9 +27,12 @@ export const Route = createFileRoute("/admin")({
 type UserRow = {
   user_id: string;
   email: string | null;
+  plan: PlanName;
+  subscription_status: string;
   is_premium: boolean;
   premium_expires_at: string | null;
   signed_up_at: string;
+  activated_at: string | null;
   month_generations: number;
   month_regenerations: number;
 };
@@ -35,17 +45,28 @@ type Stats = {
   month_regenerations: number;
 };
 
+type FilterKey = "all" | "premium" | "free" | "suspended";
+
+function daysLeft(iso: string | null) {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return 0;
+  return Math.ceil(ms / 86400_000);
+}
+
 function AdminPage() {
   const check = useServerFn(adminCheck);
   const getStats = useServerFn(adminGetStats);
   const listUsers = useServerFn(adminListUsers);
-  const setPremium = useServerFn(adminSetPremium);
+  const setPlan = useServerFn(adminSetPlan);
+  const resetUsage = useServerFn(adminResetUsage);
 
   const [ok, setOk] = useState<boolean | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [q, setQ] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
+  const [filter, setFilter] = useState<FilterKey>("all");
+  const [active, setActive] = useState<UserRow | null>(null);
 
   const load = async () => {
     try {
@@ -67,6 +88,20 @@ function AdminPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const filtered = useMemo(() => {
+    return users.filter((u) => {
+      if (q && !(u.email ?? "").toLowerCase().includes(q.toLowerCase())) return false;
+      const isActive =
+        u.is_premium &&
+        u.subscription_status === "active" &&
+        (!u.premium_expires_at || new Date(u.premium_expires_at).getTime() > Date.now());
+      if (filter === "premium") return isActive;
+      if (filter === "free") return u.plan === "free" || !isActive;
+      if (filter === "suspended") return u.subscription_status === "suspended";
+      return true;
+    });
+  }, [users, q, filter]);
+
   if (ok === null) return <div className="p-8 text-center text-muted-foreground">Checking access…</div>;
   if (!ok)
     return (
@@ -80,39 +115,22 @@ function AdminPage() {
       </div>
     );
 
-  const filtered = users.filter((u) => !q || (u.email ?? "").toLowerCase().includes(q.toLowerCase()));
-
-  const togglePremium = async (u: UserRow, days?: number) => {
-    setBusy(u.user_id);
-    try {
-      const isPremium = !u.is_premium || !!days;
-      const expiresAt = days
-        ? new Date(Date.now() + days * 86400_000).toISOString()
-        : isPremium
-        ? null
-        : null;
-      await setPremium({ data: { userId: u.user_id, isPremium, expiresAt } });
-      toast.success(isPremium ? "Premium activated" : "Premium removed");
-      await load();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed");
-    } finally {
-      setBusy(null);
-    }
-  };
-
   return (
     <div className="pb-32">
-      <TopBar title="Admin" subtitle="Manage users & premium" icon={Shield} />
+      <TopBar title="Admin" subtitle="Manage plans, users & usage" icon={Shield} />
 
       <div className="px-5 grid grid-cols-2 gap-3">
         <Stat label="Total users" value={stats?.total_users ?? 0} accent="primary" />
         <Stat label="Premium" value={stats?.premium_users ?? 0} accent="accent" />
         <Stat label="Free" value={stats?.free_users ?? 0} accent="muted" />
-        <Stat label="Month gens" value={(stats?.month_generations ?? 0) + (stats?.month_regenerations ?? 0)} accent="success" />
+        <Stat
+          label="Month gens"
+          value={(Number(stats?.month_generations) || 0) + (Number(stats?.month_regenerations) || 0)}
+          accent="success"
+        />
       </div>
 
-      <div className="px-5 mt-5">
+      <div className="px-5 mt-5 space-y-3">
         <div className="card-soft p-2 flex items-center gap-2">
           <Search className="w-4 h-4 ml-2 text-muted-foreground" />
           <input
@@ -122,63 +140,317 @@ function AdminPage() {
             className="flex-1 bg-transparent outline-none py-2 text-sm"
           />
         </div>
+        <div className="flex gap-2 overflow-x-auto -mx-1 px-1">
+          {(["all", "premium", "free", "suspended"] as FilterKey[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-bold border whitespace-nowrap",
+                filter === f
+                  ? "bg-primary text-primary-foreground border-primary"
+                  : "bg-card text-muted-foreground border-border"
+              )}
+            >
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="px-5 mt-3 space-y-2">
-        {filtered.map((u) => {
-          const active =
-            u.is_premium && (!u.premium_expires_at || new Date(u.premium_expires_at).getTime() > Date.now());
-          return (
-            <div key={u.user_id} className="card-soft p-4">
-              <div className="flex items-start gap-3">
-                <div
-                  className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                    active ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
-                  )}
-                >
-                  {active ? <Crown className="w-4 h-4" /> : <Users className="w-4 h-4" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm truncate">{u.email ?? "—"}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Joined {new Date(u.signed_up_at).toLocaleDateString()} ·{" "}
-                    {Number(u.month_generations)} gens / {Number(u.month_regenerations)} regens this month
-                  </p>
-                  {u.premium_expires_at && (
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Expires {new Date(u.premium_expires_at).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mt-3">
-                <button
-                  disabled={busy === u.user_id}
-                  onClick={() => togglePremium(u, 30)}
-                  className="py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
-                >
-                  <Check className="w-3.5 h-3.5" /> +30 days
-                </button>
-                <button
-                  disabled={busy === u.user_id}
-                  onClick={() => togglePremium(u, 90)}
-                  className="py-2 rounded-xl bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
-                >
-                  <Check className="w-3.5 h-3.5" /> +90 days
-                </button>
-                <button
-                  disabled={busy === u.user_id || !u.is_premium}
-                  onClick={() => togglePremium({ ...u, is_premium: true }, 0).then(() => setPremium({ data: { userId: u.user_id, isPremium: false, expiresAt: null } }).then(load))}
-                  className="py-2 rounded-xl bg-destructive/10 text-destructive text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
-                >
-                  <XIcon className="w-3.5 h-3.5" /> Remove
-                </button>
-              </div>
-            </div>
-          );
-        })}
+        {filtered.map((u) => (
+          <UserCard key={u.user_id} u={u} onManage={() => setActive(u)} />
+        ))}
         {filtered.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">No users found.</p>}
+      </div>
+
+      {active && (
+        <ManageDrawer
+          user={active}
+          onClose={() => setActive(null)}
+          onAction={async () => {
+            await load();
+          }}
+          setPlan={setPlan}
+          resetUsage={resetUsage}
+        />
+      )}
+    </div>
+  );
+}
+
+function UserCard({ u, onManage }: { u: UserRow; onManage: () => void }) {
+  const isActive =
+    u.is_premium &&
+    u.subscription_status === "active" &&
+    (!u.premium_expires_at || new Date(u.premium_expires_at).getTime() > Date.now());
+  const dleft = daysLeft(u.premium_expires_at);
+  const limits = PLAN_LIMITS[u.plan];
+
+  return (
+    <button onClick={onManage} className="card-soft p-4 w-full text-left active:scale-[0.99] transition">
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+            isActive ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground"
+          )}
+        >
+          {isActive ? <Crown className="w-4 h-4" /> : <Users className="w-4 h-4" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-sm truncate">{u.email ?? "—"}</p>
+            <PlanBadge plan={u.plan} status={u.subscription_status} />
+          </div>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Joined {new Date(u.signed_up_at).toLocaleDateString()} ·{" "}
+            {Number(u.month_generations)}/
+            {isUnlimited(limits.generations) ? "∞" : limits.generations} gens ·{" "}
+            {Number(u.month_regenerations)}/
+            {isUnlimited(limits.regenerations) ? "∞" : limits.regenerations} regens
+          </p>
+          {u.premium_expires_at && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {dleft && dleft > 0
+                ? `Expires in ${dleft} day${dleft === 1 ? "" : "s"} (${new Date(u.premium_expires_at).toLocaleDateString()})`
+                : `Expired ${new Date(u.premium_expires_at).toLocaleDateString()}`}
+            </p>
+          )}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+function PlanBadge({ plan, status }: { plan: PlanName; status: string }) {
+  const isSuspended = status === "suspended";
+  const cls = isSuspended
+    ? "bg-destructive/10 text-destructive"
+    : plan === "free"
+    ? "bg-secondary text-foreground"
+    : plan === "starter"
+    ? "bg-primary-soft text-primary"
+    : plan === "pro"
+    ? "bg-accent-soft text-accent-foreground"
+    : "bg-success/15 text-success";
+  return (
+    <span className={cn("px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide", cls)}>
+      {isSuspended ? "Suspended" : PLAN_LIMITS[plan].label}
+    </span>
+  );
+}
+
+function ManageDrawer({
+  user,
+  onClose,
+  onAction,
+  setPlan,
+  resetUsage,
+}: {
+  user: UserRow;
+  onClose: () => void;
+  onAction: () => Promise<void>;
+  setPlan: ReturnType<typeof useServerFn<typeof adminSetPlan>>;
+  resetUsage: ReturnType<typeof useServerFn<typeof adminResetUsage>>;
+}) {
+  const [plan, setPlanLocal] = useState<PlanName>(user.plan === "free" ? "starter" : user.plan);
+  const [days, setDays] = useState<number | "custom">(30);
+  const [customDate, setCustomDate] = useState<string>(
+    new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10)
+  );
+  const [busy, setBusy] = useState(false);
+
+  const computeExpiry = () => {
+    if (days === "custom") {
+      const d = new Date(customDate);
+      d.setHours(23, 59, 59, 0);
+      return d.toISOString();
+    }
+    return new Date(Date.now() + Number(days) * 86400_000).toISOString();
+  };
+
+  const act = async (fn: () => Promise<unknown>, msg: string) => {
+    setBusy(true);
+    try {
+      await fn();
+      toast.success(msg);
+      await onAction();
+      onClose();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="relative w-full sm:max-w-md bg-card rounded-t-3xl sm:rounded-3xl p-5 max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
+          <XIcon className="w-4 h-4" />
+        </button>
+
+        <h2 className="text-lg font-extrabold pr-10 truncate">{user.email ?? "User"}</h2>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <PlanBadge plan={user.plan} status={user.subscription_status} />
+          {user.premium_expires_at && (
+            <span className="text-xs text-muted-foreground">
+              Expires {new Date(user.premium_expires_at).toLocaleDateString()}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-5">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Select plan</p>
+          <div className="grid grid-cols-2 gap-2">
+            {PLAN_ORDER.filter((p) => p !== "free").map((p) => {
+              const limits = PLAN_LIMITS[p];
+              return (
+                <button
+                  key={p}
+                  onClick={() => setPlanLocal(p)}
+                  className={cn(
+                    "p-3 rounded-2xl border text-left transition",
+                    plan === p
+                      ? "border-primary bg-primary-soft"
+                      : "border-border bg-card hover:border-primary/40"
+                  )}
+                >
+                  <p className="font-bold text-sm">{limits.label}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {isUnlimited(limits.generations) ? "∞" : limits.generations} gens ·{" "}
+                    {isUnlimited(limits.regenerations) ? "∞" : limits.regenerations} regens
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Duration</p>
+          <div className="flex flex-wrap gap-2">
+            {[30, 60, 90].map((d) => (
+              <button
+                key={d}
+                onClick={() => setDays(d)}
+                className={cn(
+                  "px-3 py-1.5 rounded-full text-xs font-bold border",
+                  days === d ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border"
+                )}
+              >
+                {d} days
+              </button>
+            ))}
+            <button
+              onClick={() => setDays("custom")}
+              className={cn(
+                "px-3 py-1.5 rounded-full text-xs font-bold border",
+                days === "custom" ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border"
+              )}
+            >
+              Custom
+            </button>
+          </div>
+          {days === "custom" && (
+            <input
+              type="date"
+              value={customDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setCustomDate(e.target.value)}
+              className="mt-2 w-full bg-secondary rounded-xl px-3 py-2 text-sm outline-none"
+            />
+          )}
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
+          <button
+            disabled={busy}
+            onClick={() =>
+              act(
+                () => setPlan({ data: { userId: user.user_id, plan, expiresAt: computeExpiry(), status: "active" } }),
+                user.is_premium ? "Plan updated" : "Plan activated"
+              )
+            }
+            className="py-3 rounded-xl bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+          >
+            <Check className="w-3.5 h-3.5" /> {user.is_premium ? "Update plan" : "Activate"}
+          </button>
+          <button
+            disabled={busy || !user.is_premium}
+            onClick={() =>
+              act(
+                () =>
+                  setPlan({
+                    data: {
+                      userId: user.user_id,
+                      plan: user.plan,
+                      expiresAt: new Date(
+                        Math.max(
+                          Date.now(),
+                          user.premium_expires_at ? new Date(user.premium_expires_at).getTime() : Date.now()
+                        ) + (typeof days === "number" ? days : 30) * 86400_000
+                      ).toISOString(),
+                      status: "active",
+                    },
+                  }),
+                "Subscription extended"
+              )
+            }
+            className="py-3 rounded-xl bg-accent text-accent-foreground text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+          >
+            <Check className="w-3.5 h-3.5" /> Extend
+          </button>
+          <button
+            disabled={busy}
+            onClick={() =>
+              act(() => resetUsage({ data: { userId: user.user_id } }), "Usage reset for this month")
+            }
+            className="py-3 rounded-xl bg-secondary text-foreground text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Reset usage
+          </button>
+          <button
+            disabled={busy || !user.is_premium}
+            onClick={() =>
+              act(
+                () =>
+                  setPlan({
+                    data: {
+                      userId: user.user_id,
+                      plan: user.plan,
+                      expiresAt: user.premium_expires_at,
+                      status: "suspended",
+                    },
+                  }),
+                "Subscription suspended"
+              )
+            }
+            className="py-3 rounded-xl bg-accent-soft text-accent-foreground text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+          >
+            <Pause className="w-3.5 h-3.5" /> Suspend
+          </button>
+          <button
+            disabled={busy || !user.is_premium}
+            onClick={() =>
+              act(
+                () =>
+                  setPlan({
+                    data: { userId: user.user_id, plan: "free", expiresAt: null, status: "inactive" },
+                  }),
+                "Premium removed"
+              )
+            }
+            className="col-span-2 py-3 rounded-xl bg-destructive/10 text-destructive text-xs font-bold flex items-center justify-center gap-1 disabled:opacity-50"
+          >
+            <XIcon className="w-3.5 h-3.5" /> Remove premium
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -46,29 +46,101 @@ export type Database = {
       }
       profiles: {
         Row: {
+          activated_at: string | null
+          activated_by_admin: string | null
           created_at: string
           email: string | null
           id: string
           is_premium: boolean
+          plan: Database["public"]["Enums"]["subscription_plan"]
           premium_expires_at: string | null
+          subscription_status: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          activated_at?: string | null
+          activated_by_admin?: string | null
           created_at?: string
           email?: string | null
           id?: string
           is_premium?: boolean
+          plan?: Database["public"]["Enums"]["subscription_plan"]
           premium_expires_at?: string | null
+          subscription_status?: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          activated_at?: string | null
+          activated_by_admin?: string | null
           created_at?: string
           email?: string | null
           id?: string
           is_premium?: boolean
+          plan?: Database["public"]["Enums"]["subscription_plan"]
           premium_expires_at?: string | null
+          subscription_status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      subscription_audit: {
+        Row: {
+          action: string
+          created_at: string
+          expires_at: string | null
+          id: string
+          notes: string | null
+          performed_by: string | null
+          plan: Database["public"]["Enums"]["subscription_plan"] | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          plan?: Database["public"]["Enums"]["subscription_plan"] | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          performed_by?: string | null
+          plan?: Database["public"]["Enums"]["subscription_plan"] | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      usage_counters: {
+        Row: {
+          generations: number
+          id: string
+          period_start: string
+          regenerations: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          generations?: number
+          id?: string
+          period_start: string
+          regenerations?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          generations?: number
+          id?: string
+          period_start?: string
+          regenerations?: number
           updated_at?: string
           user_id?: string
         }
@@ -103,14 +175,28 @@ export type Database = {
       admin_list_users: {
         Args: never
         Returns: {
+          activated_at: string
           email: string
           is_premium: boolean
           month_generations: number
           month_regenerations: number
+          plan: Database["public"]["Enums"]["subscription_plan"]
           premium_expires_at: string
           signed_up_at: string
+          subscription_status: string
           user_id: string
         }[]
+      }
+      admin_reset_usage: { Args: { _user_id: string }; Returns: undefined }
+      admin_set_plan: {
+        Args: {
+          _expires_at: string
+          _notes?: string
+          _plan: Database["public"]["Enums"]["subscription_plan"]
+          _status?: string
+          _user_id: string
+        }
+        Returns: undefined
       }
       admin_set_premium: {
         Args: { _expires_at: string; _is_premium: boolean; _user_id: string }
@@ -126,6 +212,7 @@ export type Database = {
           total_users: number
         }[]
       }
+      current_period_start: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -133,10 +220,15 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_usage: {
+        Args: { _is_regen: boolean; _user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "user"
       generation_kind: "email" | "message" | "reply"
+      subscription_plan: "free" | "starter" | "pro" | "business"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -266,6 +358,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       generation_kind: ["email", "message", "reply"],
+      subscription_plan: ["free", "starter", "pro", "business"],
     },
   },
 } as const
