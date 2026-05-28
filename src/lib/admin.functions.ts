@@ -148,7 +148,8 @@ export const adminCreateUser = createServerFn({ method: "POST" })
       const expiresAt = data.durationDays
         ? new Date(Date.now() + data.durationDays * 86400_000).toISOString()
         : null;
-      const { error: planErr } = await supabaseAdmin.rpc("admin_set_plan", {
+      // Call via the user-authed client so auth.uid() is the calling admin.
+      const { error: planErr } = await context.supabase.rpc("admin_set_plan", {
         _user_id: newUserId,
         _plan: data.plan,
         _expires_at: expiresAt as any,
