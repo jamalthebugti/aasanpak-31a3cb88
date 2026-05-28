@@ -1,7 +1,6 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
-import { Shield, Users, Crown, Search, Check, X as XIcon, RotateCcw, Pause, UserPlus } from "lucide-react";
+import { Shield, Users, Crown, Search, Check, X as XIcon, RotateCcw, Pause } from "lucide-react";
 import { TopBar } from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -10,7 +9,6 @@ import {
   adminListUsers,
   adminSetPlan,
   adminResetUsage,
-  adminCreateUser,
 } from "@/lib/admin.functions";
 import { PLAN_LIMITS, PLAN_ORDER, type PlanName, isUnlimited } from "@/lib/plans";
 import { toast } from "sonner";
@@ -56,12 +54,11 @@ function daysLeft(iso: string | null) {
 }
 
 function AdminPage() {
-  const check = useServerFn(adminCheck);
-  const getStats = useServerFn(adminGetStats);
-  const listUsers = useServerFn(adminListUsers);
-  const setPlan = useServerFn(adminSetPlan);
-  const resetUsage = useServerFn(adminResetUsage);
-  const createUser = useServerFn(adminCreateUser);
+  const check = adminCheck;
+  const getStats = adminGetStats;
+  const listUsers = adminListUsers;
+  const setPlan = adminSetPlan;
+  const resetUsage = adminResetUsage;
 
   const [ok, setOk] = useState<boolean | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -69,7 +66,6 @@ function AdminPage() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [active, setActive] = useState<UserRow | null>(null);
-  const [creating, setCreating] = useState(false);
 
   const load = async () => {
     try {
@@ -144,12 +140,6 @@ function AdminPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCreating(true)}
-            className="px-3 py-1.5 rounded-full text-xs font-bold bg-primary text-primary-foreground flex items-center gap-1 whitespace-nowrap"
-          >
-            <UserPlus className="w-3.5 h-3.5" /> Create user
-          </button>
           <div className="flex gap-2 overflow-x-auto flex-1">
           {(["all", "premium", "free", "suspended"] as FilterKey[]).map((f) => (
             <button
@@ -185,16 +175,6 @@ function AdminPage() {
           }}
           setPlan={setPlan}
           resetUsage={resetUsage}
-        />
-      )}
-
-      {creating && (
-        <CreateUserDrawer
-          onClose={() => setCreating(false)}
-          onDone={async () => {
-            await load();
-          }}
-          createUser={createUser}
         />
       )}
     </div>
