@@ -4,8 +4,8 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "vinxi dev",
+    "build": "vinxi build",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {
@@ -68,6 +68,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "vinxi": "^0.3.2",
     "@eslint/js": "^9.32.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
