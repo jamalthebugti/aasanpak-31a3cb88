@@ -1,10 +1,14 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from "vite";
+import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+import viteReact from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import tsConfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
-  plugins: [react()],
-  server: {
-    host: '0.0.0.0',
-    port: 3000
-  }
-})
+  plugins: [
+    tsConfigPaths(),
+    tailwindcss(),
+    tanstackStart({ target: "node-server" }),
+    viteReact(),
+  ],
+});
