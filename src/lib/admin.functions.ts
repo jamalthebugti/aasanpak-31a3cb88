@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 async function assertAdmin(supabase: any, userId: string) {
   const { data, error } = await supabase
@@ -104,4 +105,65 @@ export const adminSetPremium = createServerFn({ method: "POST" })
     });
     if (error) throw new Error(error.message);
     return { ok: true };
+  });
+
+// Admin creates a new user (auto-confirmed) and optionally assigns a plan.
+export const adminCreateUser = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        email: z.string().email().max(255),
+        password: z.string().min(6).max(128),
+        fullName: z.string().max(120).optional(),
+        plan: PlanEnum.default("free"),
+        durationDays: z.number().int().min(1).max(3650).nullable().optional(),
+        makeAdmin: z.boolean().optional().default(false),
+      })
+      .parse(d),
+  )
+  .handler(async ({ context, data }) => {
+    await assertAdmin(context.supabase, context.userId);
+
+    // 1. Create the auth user with email already confirmed.
+    const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
+      email: data.email,
+      password: data.password,
+      email_confirm: true,
+      user_metadata: data.fullName ? { full_name: data.fullName } : undefined,
+    });
+    if (createErr || !created?.user) {
+      throw new Error(createErr?.message ?? "Failed to create user");
+    }
+    const newUserId = created.user.id;
+
+    // 2. Ensure the profile row exists (handle_new_user trigger usually creates it,
+    //    but we upsert defensively in case the trigger is missing).
+    await supabaseAdmin
+      .from("profiles")
+      .upsert({ user_id: newUserId, email: data.email }, { onConflict: "user_id" });
+
+    // 3. Assign plan + expiry via the existing RPC.
+    if (data.plan !== "free") {
+      const expiresAt = data.durationDays
+        ? new Date(Date.now() + data.durationDays * 86400_000).toISOString()
+        : null;
+      const { error: planErr } = await supabaseAdmin.rpc("admin_set_plan", {
+        _user_id: newUserId,
+        _plan: data.plan,
+        _expires_at: expiresAt as any,
+        _status: "active",
+        _notes: "Created by admin",
+      });
+      if (planErr) throw new Error(planErr.message);
+    }
+
+    // 4. Optional admin role.
+    if (data.makeAdmin) {
+      await supabaseAdmin
+        .from("user_roles")
+        .upsert({ user_id: newUserId, role: "admin" }, { onConflict: "user_id,role" });
+    }
+
+    return { ok: true, userId: newUserId };
   });
