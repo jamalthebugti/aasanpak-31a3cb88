@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vinxi dev",
     "build": "vinxi build",
-    "start": "node .output/server/index.mjs"
+    "start": "serve -s .output/public -l 10000"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.47",
@@ -69,6 +69,7 @@
   },
   "devDependencies": {
     "vinxi": "^0.3.14",
+    "serve": "^14.2.4",
     "@eslint/js": "^9.32.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
@@ -83,6 +84,6 @@
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^5.4.14"
+    "vite": "^6.2.0"
   }
 }
