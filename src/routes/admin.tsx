@@ -1,7 +1,6 @@
 import { createFileRoute, redirect, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
-import { Shield, Users, Crown, Search, Check, X as XIcon, RotateCcw, Pause, UserPlus } from "lucide-react";
+import { Shield, Users, Crown, Search, Check, X as XIcon, RotateCcw, Pause } from "lucide-react";
 import { TopBar } from "@/components/BottomNav";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -10,7 +9,6 @@ import {
   adminListUsers,
   adminSetPlan,
   adminResetUsage,
-  adminCreateUser,
 } from "@/lib/admin.functions";
 import { PLAN_LIMITS, PLAN_ORDER, type PlanName, isUnlimited } from "@/lib/plans";
 import { toast } from "sonner";
@@ -56,12 +54,11 @@ function daysLeft(iso: string | null) {
 }
 
 function AdminPage() {
-  const check = useServerFn(adminCheck);
-  const getStats = useServerFn(adminGetStats);
-  const listUsers = useServerFn(adminListUsers);
-  const setPlan = useServerFn(adminSetPlan);
-  const resetUsage = useServerFn(adminResetUsage);
-  const createUser = useServerFn(adminCreateUser);
+  const check = adminCheck;
+  const getStats = adminGetStats;
+  const listUsers = adminListUsers;
+  const setPlan = adminSetPlan;
+  const resetUsage = adminResetUsage;
 
   const [ok, setOk] = useState<boolean | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -69,7 +66,6 @@ function AdminPage() {
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [active, setActive] = useState<UserRow | null>(null);
-  const [creating, setCreating] = useState(false);
 
   const load = async () => {
     try {
@@ -144,12 +140,6 @@ function AdminPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCreating(true)}
-            className="px-3 py-1.5 rounded-full text-xs font-bold bg-primary text-primary-foreground flex items-center gap-1 whitespace-nowrap"
-          >
-            <UserPlus className="w-3.5 h-3.5" /> Create user
-          </button>
           <div className="flex gap-2 overflow-x-auto flex-1">
           {(["all", "premium", "free", "suspended"] as FilterKey[]).map((f) => (
             <button
@@ -187,193 +177,6 @@ function AdminPage() {
           resetUsage={resetUsage}
         />
       )}
-
-      {creating && (
-        <CreateUserDrawer
-          onClose={() => setCreating(false)}
-          onDone={async () => {
-            await load();
-          }}
-          createUser={createUser}
-        />
-      )}
-    </div>
-  );
-}
-
-function CreateUserDrawer({
-  onClose,
-  onDone,
-  createUser,
-}: {
-  onClose: () => void;
-  onDone: () => Promise<void>;
-  createUser: ReturnType<typeof useServerFn<typeof adminCreateUser>>;
-}) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [plan, setPlan] = useState<PlanName>("free");
-  const [days, setDays] = useState<number | "custom" | "none">("none");
-  const [customDate, setCustomDate] = useState<string>(
-    new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10),
-  );
-  const [makeAdmin, setMakeAdmin] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-    setBusy(true);
-    try {
-      let durationDays: number | null = null;
-      if (plan !== "free") {
-        if (days === "custom") {
-          const ms = new Date(customDate).getTime() - Date.now();
-          durationDays = Math.max(1, Math.ceil(ms / 86400_000));
-        } else if (typeof days === "number") {
-          durationDays = days;
-        }
-      }
-      await createUser({
-        data: {
-          email: email.trim(),
-          password,
-          fullName: fullName.trim() || undefined,
-          plan,
-          durationDays,
-          makeAdmin,
-        },
-      });
-      toast.success("User created");
-      await onDone();
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to create user");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
-      <form
-        onSubmit={submit}
-        className="relative w-full sm:max-w-md bg-card rounded-t-3xl sm:rounded-3xl p-5 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button type="button" onClick={onClose} className="absolute top-4 right-4 w-9 h-9 rounded-full bg-secondary flex items-center justify-center">
-          <XIcon className="w-4 h-4" />
-        </button>
-        <h2 className="text-lg font-extrabold pr-10">Create user</h2>
-        <p className="text-xs text-muted-foreground mt-1">Account is created with email already confirmed.</p>
-
-        <div className="mt-4 space-y-3">
-          <input
-            required type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email" autoComplete="off"
-            className="w-full px-4 py-3 rounded-2xl bg-secondary border border-border outline-none focus:border-primary text-sm"
-          />
-          <input
-            required type="text" value={password} onChange={(e) => setPassword(e.target.value)}
-            placeholder="Password (6+ characters)" autoComplete="new-password"
-            className="w-full px-4 py-3 rounded-2xl bg-secondary border border-border outline-none focus:border-primary text-sm"
-          />
-          <input
-            type="text" value={fullName} onChange={(e) => setFullName(e.target.value)}
-            placeholder="Full name (optional)"
-            className="w-full px-4 py-3 rounded-2xl bg-secondary border border-border outline-none focus:border-primary text-sm"
-          />
-        </div>
-
-        <div className="mt-4">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Plan</p>
-          <div className="grid grid-cols-3 gap-2">
-            {PLAN_ORDER.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPlan(p)}
-                className={cn(
-                  "p-2 rounded-xl border text-xs font-bold",
-                  plan === p ? "border-primary bg-primary-soft text-primary" : "border-border bg-card",
-                )}
-              >
-                {PLAN_LIMITS[p].label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {plan !== "free" && (
-          <div className="mt-4">
-            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Duration</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setDays("none")}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-bold border",
-                  days === "none" ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border",
-                )}
-              >
-                No expiry
-              </button>
-              {[30, 60, 90].map((d) => (
-                <button
-                  key={d}
-                  type="button"
-                  onClick={() => setDays(d)}
-                  className={cn(
-                    "px-3 py-1.5 rounded-full text-xs font-bold border",
-                    days === d ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border",
-                  )}
-                >
-                  {d} days
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setDays("custom")}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-bold border",
-                  days === "custom" ? "bg-primary text-primary-foreground border-primary" : "bg-card border-border",
-                )}
-              >
-                Custom
-              </button>
-            </div>
-            {days === "custom" && (
-              <input
-                type="date"
-                value={customDate}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={(e) => setCustomDate(e.target.value)}
-                className="mt-2 w-full bg-secondary rounded-xl px-3 py-2 text-sm outline-none"
-              />
-            )}
-          </div>
-        )}
-
-        <label className="mt-4 flex items-center gap-2 text-sm">
-          <input
-            type="checkbox" checked={makeAdmin}
-            onChange={(e) => setMakeAdmin(e.target.checked)}
-            className="w-4 h-4 accent-primary"
-          />
-          Grant admin access
-        </label>
-
-        <button
-          type="submit" disabled={busy}
-          className="mt-5 w-full py-3 rounded-2xl bg-primary text-primary-foreground font-bold disabled:opacity-50"
-        >
-          {busy ? "Creating…" : "Create user"}
-        </button>
-      </form>
     </div>
   );
 }
@@ -450,8 +253,8 @@ function ManageDrawer({
   user: UserRow;
   onClose: () => void;
   onAction: () => Promise<void>;
-  setPlan: ReturnType<typeof useServerFn<typeof adminSetPlan>>;
-  resetUsage: ReturnType<typeof useServerFn<typeof adminResetUsage>>;
+  setPlan: typeof adminSetPlan;
+  resetUsage: typeof adminResetUsage;
 }) {
   const [plan, setPlanLocal] = useState<PlanName>(user.plan === "free" ? "starter" : user.plan);
   const [days, setDays] = useState<number | "custom">(30);

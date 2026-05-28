@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { Mic, MicOff, Copy, Share2, RefreshCw, Sparkles, Check } from "lucide-react";
 import { toast } from "sonner";
 import { generateCopy } from "@/lib/generate.functions";
@@ -28,7 +27,7 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
   const [copied, setCopied] = useState(false);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const [upgradeMsg, setUpgradeMsg] = useState<string | undefined>();
-  const generate = useServerFn(generateCopy);
+  const generate = generateCopy;
   const { listening, supported, start, stop } = useVoiceInput((text) =>
     setInput((p) => (p ? p + " " : "") + text)
   );

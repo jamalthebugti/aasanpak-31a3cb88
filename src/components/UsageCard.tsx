@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { useServerFn } from "@tanstack/react-start";
 import { Crown, Sparkles, RefreshCw } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { getUsage } from "@/lib/generate.functions";
@@ -9,7 +8,7 @@ import { cn } from "@/lib/utils";
 type Usage = Awaited<ReturnType<typeof getUsage>>;
 
 export function UsageCard() {
-  const fetchUsage = useServerFn(getUsage);
+  const fetchUsage = getUsage;
   const [u, setU] = useState<Usage | null>(null);
 
   useEffect(() => {
