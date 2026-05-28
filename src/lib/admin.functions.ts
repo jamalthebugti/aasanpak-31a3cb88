@@ -42,7 +42,7 @@ export const adminListUsers = createServerFn({ method: "GET" })
     return data ?? [];
   });
 
-const PlanEnum = z.enum(["free", "starter", "pro", "business"]);
+const PlanEnum = z.enum(["free", "starter", "pro", "premium", "business"]);
 const StatusEnum = z.enum(["active", "suspended", "inactive"]);
 
 export const adminSetPlan = createServerFn({ method: "POST" })
