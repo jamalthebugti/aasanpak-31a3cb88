@@ -57,10 +57,12 @@ export function Generator({ kind, placeholder, tones, toneLabel = "Tone", toneKe
         setUpgradeOpen(true);
       } else if (/limit/i.test(msg)) {
         toast.error(msg);
-      } else if (/network|fetch/i.test(msg)) {
-        toast.error("Server temporarily unavailable. Please try again.");
       } else {
-        toast.error("Something went wrong. Please try again.");
+        // Surface the real error so production misconfigurations
+        // (missing VITE_GEMINI_API_KEY, Supabase URL/key, network, auth)
+        // are visible instead of a generic message.
+        console.error("[Generator] generation failed:", e);
+        toast.error(msg || "Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
